@@ -97,6 +97,16 @@ and instr' =
   | Unary of unop                     (* unary numeric operator *)
   | Binary of binop                   (* binary numeric operator *)
   | Convert of cvtop                  (* conversion *)
+  (* | ThrowA
+   * | ThrowB
+   * | ResumeA
+   * | ResumeB
+   * | Try of {
+   *     body: instr list;
+   *     a_clause: instr list;
+   *     b_clause: instr list;
+   *     val_clause: instr list;
+   *   } *)
 
 
 (* Globals & Functions *)

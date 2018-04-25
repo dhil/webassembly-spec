@@ -56,6 +56,7 @@ and admin_instr' =
   | Breaking of int32 * value stack
   | Label of int * instr list * code
   | Frame of int * frame * code
+  (* | Throwing of int * value_stack * admin_instr list *)
 
 type config =
 {
@@ -117,6 +118,10 @@ let rec step (c : config) : config =
   let vs', es' =
     match e.it, vs with
     | Plain e', vs ->
+       Print.instr stderr 80 (e' @@ e.at);
+       output_string stderr (Values.string_of_values vs);
+       Printf.fprintf stderr "\n%!";
+       Printf.fprintf stderr "========================================\n%!";
       (match e', vs with
       | Unreachable, vs ->
         vs, [Trapping "unreachable executed" @@ e.at]
