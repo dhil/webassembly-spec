@@ -7,6 +7,15 @@ It is meant for discussion, prototype specification and implementation of a prop
 
 See the [overview](proposals/reference-types/Overview.md) for a summary of the proposal.
 
+[![Build Status](https://travis-ci.org/WebAssembly/multi-value.svg?branch=master)](https://travis-ci.org/WebAssembly/multi-value)
+
+# Multi-value Proposal for WebAssembly
+
+This repository is a clone of [github.com/WebAssembly/spec/](https://github.com/WebAssembly/spec/).
+It is meant for discussion, prototype specification and implementation of a proposal to add support for returning multiple values to WebAssembly.
+
+See the [overview](proposals/multi-value/Overview.md) for a summary of the proposal.
+
 Original `README` from upstream repository follows...
 
 # spec
