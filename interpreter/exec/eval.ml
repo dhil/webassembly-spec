@@ -223,6 +223,8 @@ let array_oob a i n =
   I64.gt_u (I64.add (I64_convert.extend_i32_u i) (I64_convert.extend_i32_u n))
     (I64_convert.extend_i32_u (Aggr.array_length a))
 
+let hdl (c : config) ((x : idx), (h : hdl)) : (tag_inst * idx) =
+  tag c.frame.inst x, match h with HandlerLabel l -> l | _ -> assert false
 
 let rec step (c : config) : config =
   let vs, es = c.code in
@@ -367,7 +369,7 @@ let rec step (c : config) : config =
         vs, [Trapping "continuation already consumed" @@ e.at]
 
       | Resume (x, xls), Ref (ContRef ({contents = Some (n, ctxt)} as cont)) :: vs ->
-        let hs = List.map (fun (x, l) -> tag c.frame.inst x, l) xls in
+        let hs = List.map (hdl c) xls in
         let args, vs' = i32_split n vs e.at in
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [])) @@ e.at]
@@ -381,7 +383,7 @@ let rec step (c : config) : config =
       | ResumeThrow (x, y, xls), Ref (ContRef ({contents = Some (n, ctxt)} as cont)) :: vs ->
         let tagt = tag c.frame.inst y in
         let FuncT (ts, _) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
-        let hs = List.map (fun (x, l) -> tag c.frame.inst x, l) xls in
+        let hs = List.map (hdl c) xls in
         let args, vs' = split (List.length ts) vs e.at in
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [Plain (Throw x) @@ e.at])) @@ e.at]

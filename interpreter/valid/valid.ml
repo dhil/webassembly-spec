@@ -421,21 +421,25 @@ let check_memop (c : context) (memop : ('t, 's) memop) ty_size get_sz at =
  * declarative typing rules.
  *)
 
-let check_resume_table (c : context) ts2 (xys : (idx * idx) list) at =
+let check_resume_table (c : context) ts2 (xys : (idx * hdl) list) at =
   List.iter (fun (x1, x2) ->
-    let FuncT (ts3, ts4) = func_type_of_tag_type c (tag c x1) x1.at in
-    let ts' = label c x2 in
-    match Lib.List.last_opt ts' with
-    | Some (RefT (nul', ht)) ->
-      let ct = cont_type_of_heap_type c ht x2.at in
-      let ft' = func_type_of_cont_type c ct x2.at in
-      require (match_func_type c.types (FuncT (ts4, ts2)) ft') x2.at
-        "type mismatch in continuation type";
-      match_stack c (ts3 @ [RefT (nul', ht)]) ts' x2.at
-    | _ ->
-      error at
-        ("type mismatch: instruction requires continuation reference type" ^
-          " but label has " ^ string_of_result_type ts')
+      match x2 with
+      | HandlerLabel x2 ->
+         let FuncT (ts3, ts4) = func_type_of_tag_type c (tag c x1) x1.at in
+         let ts' = label c x2 in
+         begin match Lib.List.last_opt ts' with
+         | Some (RefT (nul', ht)) ->
+            let ct = cont_type_of_heap_type c ht x2.at in
+            let ft' = func_type_of_cont_type c ct x2.at in
+            require (match_func_type c.types (FuncT (ts4, ts2)) ft') x2.at
+              "type mismatch in continuation type";
+            match_stack c (ts3 @ [RefT (nul', ht)]) ts' x2.at
+         | _ ->
+            error at
+              ("type mismatch: instruction requires continuation reference type" ^
+                 " but label has " ^ string_of_result_type ts')
+         end
+      | Switch -> failwith "unimplemented"
   ) xys
 
 let check_block_type (c : context) (bt : block_type) at : instr_type =

@@ -219,6 +219,16 @@ struct
 
   let tag_type x = u32 0x00l; var x
 
+  let resumetable_entry (x, y) =
+    match y with
+    | Ast.Switch ->
+       byte 0x01; var x
+    | Ast.HandlerLabel y ->
+       byte 0x00; var x; var y
+
+  let resumetable xls =
+    vec resumetable_entry xls
+
   (* Expressions *)
 
   open Ast
@@ -231,7 +241,6 @@ struct
   let end_ () = op 0x0b
 
   let var x = u32 x.it
-  let var_pair (x, y) = var x; var y
 
   let memop x {align; offset; _} =
     let has_var = x.it <> 0l in
@@ -291,8 +300,8 @@ struct
     | ContNew x -> op 0xe0; var x
     | ContBind (x, y) -> op 0xe1; var x; var y
     | Suspend x -> op 0xe2; var x
-    | Resume (x, xls) -> op 0xe3; var x; vec var_pair xls
-    | ResumeThrow (x, y, xls) -> op 0xe4; var x; var y; vec var_pair xls
+    | Resume (x, xls) -> op 0xe3; var x; resumetable xls
+    | ResumeThrow (x, y, xls) -> op 0xe4; var x; var y; resumetable xls
     | Barrier (bt, es) -> op 0xe5; block_type bt; list instr es; end_ ()
 
     | Throw x -> op 0x08; var x

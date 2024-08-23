@@ -337,11 +337,6 @@ let block_type s =
     (fun s -> ValBlockType (Some (val_type s)));
   ] s
 
-let var_pair s =
-  let x = at var s in
-  let y = at var s in
-  x, y
-
 let local s =
   let n = u32 s in
   let t = at val_type s in
@@ -355,6 +350,20 @@ let locals s =
     s pos "too many locals";
   List.flatten (List.map (Lib.Fun.uncurry Lib.List32.make) nts)
 
+let resumetable_entry s =
+  if peek s = Some 0x01 then begin
+      expect 0x01 s "malformed on clause";
+      let x = at var s in
+      (x, Switch)
+    end else begin
+      expect 0x00 s "malformed on clause";
+      let x = at var s in
+      let y = at var s in
+      (x, HandlerLabel y)
+    end
+
+let resumetable s =
+  vec resumetable_entry s
 
 let rec instr s =
   let pos = pos s in
@@ -633,12 +642,12 @@ let rec instr s =
   | 0xe2 -> suspend (at var s)
   | 0xe3 ->
     let x = at var s in
-    let xls = vec var_pair s in
+    let xls = resumetable s in
     resume x xls
   | 0xe4 ->
     let x   = at var s in
     let tag = at var s in
-    let xls = vec var_pair s in
+    let xls = resumetable s in
     resume_throw x tag xls
   | 0xe5 ->
     let bt = block_type s in
