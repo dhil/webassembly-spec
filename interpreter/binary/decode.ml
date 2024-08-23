@@ -350,20 +350,20 @@ let locals s =
     s pos "too many locals";
   List.flatten (List.map (Lib.Fun.uncurry Lib.List32.make) nts)
 
-let resumetable_entry s =
+let on_clause s =
   if peek s = Some 0x01 then begin
       expect 0x01 s "malformed on clause";
       let x = at var s in
-      (x, Switch)
+      (x, OnSwitch)
     end else begin
       expect 0x00 s "malformed on clause";
       let x = at var s in
       let y = at var s in
-      (x, HandlerLabel y)
+      (x, OnLabel y)
     end
 
 let resumetable s =
-  vec resumetable_entry s
+  vec on_clause s
 
 let rec instr s =
   let pos = pos s in
@@ -650,6 +650,10 @@ let rec instr s =
     let xls = resumetable s in
     resume_throw x tag xls
   | 0xe5 ->
+    let x = at var s in
+    let tag = at var s in
+    switch x tag
+  | 0xe6 ->
     let bt = block_type s in
     let es' = instr_block s in
     end_ s;

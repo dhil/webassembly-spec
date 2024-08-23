@@ -219,16 +219,6 @@ struct
 
   let tag_type x = u32 0x00l; var x
 
-  let resumetable_entry (x, y) =
-    match y with
-    | Ast.Switch ->
-       byte 0x01; var x
-    | Ast.HandlerLabel y ->
-       byte 0x00; var x; var y
-
-  let resumetable xls =
-    vec resumetable_entry xls
-
   (* Expressions *)
 
   open Ast
@@ -263,6 +253,16 @@ struct
         (n + 1, loc') :: nlocs'
       | nlocs -> (1, loc) :: nlocs
     in vec local (List.fold_right combine locs [])
+
+  let on_clause (x, y) =
+    match y with
+    | OnSwitch ->
+       byte 0x01; var x
+    | OnLabel y ->
+       byte 0x00; var x; var y
+
+  let resumetable xls =
+    vec on_clause xls
 
   let rec instr e =
     match e.it with
@@ -302,7 +302,8 @@ struct
     | Suspend x -> op 0xe2; var x
     | Resume (x, xls) -> op 0xe3; var x; resumetable xls
     | ResumeThrow (x, y, xls) -> op 0xe4; var x; var y; resumetable xls
-    | Barrier (bt, es) -> op 0xe5; block_type bt; list instr es; end_ ()
+    | Switch (x, y) -> op 0xe5; var x; var y
+    | Barrier (bt, es) -> op 0xe6; block_type bt; list instr es; end_ ()
 
     | Throw x -> op 0x08; var x
     | ThrowRef -> op 0x0a

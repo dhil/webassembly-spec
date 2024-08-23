@@ -490,8 +490,8 @@ let block_type = function
   | ValBlockType ts -> decls "result" (list_of_opt ts)
 
 let hdl = function
-  | HandlerLabel x -> var x
-  | Switch -> "switch"
+  | OnLabel x -> var x
+  | OnSwitch -> "switch"
 
 let resumetable xys =
   List.map
@@ -539,6 +539,8 @@ let rec instr e =
       "resume " ^ var x, resumetable xys
     | ResumeThrow (x, y, xys) ->
       "resume_throw " ^ var x ^ " " ^ var y, resumetable xys
+    | Switch (x, y) ->
+      "switch " ^ var x ^ " " ^ var y, []
     | Barrier (bt, es) -> "barrier", block_type bt @ list instr es
     | Throw x -> "throw " ^ var x, []
     | ThrowRef -> "throw_ref", []

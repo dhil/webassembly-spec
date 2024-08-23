@@ -592,6 +592,7 @@ instr_list :
   | select_instr_instr_list { $1 }
   | call_instr_instr_list { $1 }
   | resume_instr_instr { fun c -> let e, es = $1 c in e :: es }
+  | switch_instr_instr { fun c -> let e, es = $1 c in e :: es }
 
 instr1 :
   | plain_instr { fun c -> [$1 c @@ $sloc] }
@@ -783,11 +784,20 @@ resume_instr_instr :
 
 resume_instr_handler_instr :
   | LPAR ON var var RPAR resume_instr_handler_instr
-    { fun c -> let hs, es = $6 c in ($3 c tag, HandlerLabel ($4 c label)) :: hs, es }
+    { fun c -> let hs, es = $6 c in ($3 c tag, OnLabel ($4 c label)) :: hs, es }
   | LPAR ON var SWITCH RPAR resume_instr_handler_instr
-    { fun c -> let hs, es = $6 c in ($3 c tag, Switch) :: hs, es }
+    { fun c -> let hs, es = $6 c in ($3 c tag, OnSwitch) :: hs, es }
   | instr1
     { fun c -> [], $1 c }
+
+switch_instr_instr :
+  | SWITCH var var instr1
+    { fun c ->
+      let loc1 = $loc($1) in
+      let x = $2 c type_ in
+      let tag = $3 c type_ in
+      let es = $4 c in
+      switch x tag @@ loc1, es }
 
 block_instr :
   | BLOCK labeling_opt block END labeling_end_opt
@@ -900,6 +910,12 @@ expr1 :  /* Sugar */
       let tag = $3 c tag in
       let hs, es = $4 c in
       es, resume_throw x tag hs }
+  | SWITCH var var expr_list
+    { fun c ->
+      let x = $2 c type_ in
+      let tag = $3 c tag in
+      let es = $4 c in
+      es, switch x tag }
   | BLOCK labeling_opt block
     { fun c -> let c' = $2 c [] in let bt, es = $3 c' in [], block bt es }
   | LOOP labeling_opt block
@@ -943,9 +959,9 @@ call_expr_results :
 
 resume_expr_handler :
   | LPAR ON var var RPAR resume_expr_handler
-    { fun c -> let hs, es = $6 c in ($3 c tag, HandlerLabel ($4 c label)) :: hs, es }
+    { fun c -> let hs, es = $6 c in ($3 c tag, OnLabel ($4 c label)) :: hs, es }
   | LPAR ON var SWITCH RPAR resume_expr_handler
-    { fun c -> let hs, es = $6 c in ($3 c tag, Switch) :: hs, es }
+    { fun c -> let hs, es = $6 c in ($3 c tag, OnSwitch) :: hs, es }
   | expr_list
     { fun c -> [], $1 c }
 

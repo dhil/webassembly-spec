@@ -224,7 +224,7 @@ let array_oob a i n =
     (I64_convert.extend_i32_u (Aggr.array_length a))
 
 let hdl (c : config) ((x : idx), (h : hdl)) : (tag_inst * idx) =
-  tag c.frame.inst x, match h with HandlerLabel l -> l | _ -> assert false
+  tag c.frame.inst x, match h with OnLabel l -> l | _ -> assert false
 
 let rec step (c : config) : config =
   let vs, es = c.code in

@@ -142,8 +142,8 @@ let block_type = function
   | ValBlockType t -> opt val_type t
 
 let hdl = function
-  | HandlerLabel x -> labels (idx x)
-  | Switch -> empty
+  | OnLabel x -> labels (idx x)
+  | OnSwitch -> empty
 
 let rec instr (e : instr) =
   match e.it with
@@ -183,6 +183,7 @@ let rec instr (e : instr) =
   | ResumeThrow (x, y, xys) -> types (idx x) ++ tags (idx y) ++ list (fun (x, y) -> tags (idx x) ++ hdl y) xys
   | Resume (x, xys) -> types (idx x) ++ list (fun (x, y) -> tags (idx x) ++ hdl y) xys
   | Suspend x -> tags (idx x)
+  | Switch (x, y) -> types (idx x) ++ tags (idx y)
   | Throw x -> tags (idx x)
   | ThrowRef -> empty
   | TryTable (bt, cs, es) ->

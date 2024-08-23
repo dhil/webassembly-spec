@@ -424,7 +424,7 @@ let check_memop (c : context) (memop : ('t, 's) memop) ty_size get_sz at =
 let check_resume_table (c : context) ts2 (xys : (idx * hdl) list) at =
   List.iter (fun (x1, x2) ->
       match x2 with
-      | HandlerLabel x2 ->
+      | OnLabel x2 ->
          let FuncT (ts3, ts4) = func_type_of_tag_type c (tag c x1) x1.at in
          let ts' = label c x2 in
          begin match Lib.List.last_opt ts' with
@@ -439,7 +439,7 @@ let check_resume_table (c : context) ts2 (xys : (idx * hdl) list) at =
               ("type mismatch: instruction requires continuation reference type" ^
                  " but label has " ^ string_of_result_type ts')
          end
-      | Switch -> failwith "unimplemented"
+      | OnSwitch -> failwith "unimplemented"
   ) xys
 
 let check_block_type (c : context) (bt : block_type) at : instr_type =
@@ -635,6 +635,14 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
     let FuncT (ts0, _) = func_type_of_tag_type c tag y.at in
     check_resume_table c ts2 xys e.at;
     (ts0 @ [RefT (Null, VarHT (StatX x.it))]) --> ts2, []
+
+  | Switch (x, y) ->
+     let _ct1 = cont_type c x in
+     let et = tag c y in
+     let (FuncT (_, t)) as eft = func_type_of_tag_type c et y.at in
+     require (match_func_type c.types (FuncT ([], t)) eft) y.at
+       "type mismatch in switch tag";
+     failwith "todo"
 
   | Barrier (bt, es) ->
     let InstrT (ts1, ts2, xs) as ft = check_block_type c bt e.at in
