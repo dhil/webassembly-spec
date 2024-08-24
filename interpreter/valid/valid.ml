@@ -636,13 +636,20 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
     check_resume_table c ts2 xys e.at;
     (ts0 @ [RefT (Null, VarHT (StatX x.it))]) --> ts2, []
 
-  | Switch (x, y) ->
-     let _ct1 = cont_type c x in
-     let et = tag c y in
-     let (FuncT (_, t)) as eft = func_type_of_tag_type c et y.at in
-     require (match_func_type c.types (FuncT ([], t)) eft) y.at
+  | Switch (x, y, z) ->
+     let ct1 = cont_type c x in
+     let ct2 = cont_type c y in
+     let FuncT (ts1, te1) = func_type_of_cont_type c ct1 x.at in
+     let FuncT (ts2, te2) = func_type_of_cont_type c ct2 y.at in
+     let et = tag c z in
+     let (FuncT (_, t)) as eft = func_type_of_tag_type c et z.at in
+     require (match_func_type c.types (FuncT ([], t)) eft) z.at
        "type mismatch in switch tag";
-     failwith "todo"
+     require (match_result_type c.types te1 t) z.at
+       "type mismatch in continuation types";
+     require (match_result_type c.types t te2) z.at
+       "type mismatch in continuation types";
+     (ts1 @ [RefT (Null, VarHT (StatX y.it))]) --> ts2, []
 
   | Barrier (bt, es) ->
     let InstrT (ts1, ts2, xs) as ft = check_block_type c bt e.at in

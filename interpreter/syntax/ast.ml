@@ -169,7 +169,7 @@ and instr' =
   | Suspend of idx                    (* suspend continuation *)
   | Resume of idx * (idx * hdl) list  (* resume continuation *)
   | ResumeThrow of idx * idx * (idx * hdl) list (* abort continuation *)
-  | Switch of idx * idx               (* direct switch continuation *)
+  | Switch of idx * idx * idx         (* direct switch continuation *)
   | Barrier of block_type * instr list  (* guard against suspension *)
   | Throw of idx                      (* throw exception *)
   | ThrowRef                          (* rethrow exception *)

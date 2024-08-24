@@ -791,13 +791,14 @@ resume_instr_handler_instr :
     { fun c -> [], $1 c }
 
 switch_instr_instr :
-  | SWITCH var var instr1
+  | SWITCH var var var instr1
     { fun c ->
       let loc1 = $loc($1) in
       let x = $2 c type_ in
-      let tag = $3 c type_ in
-      let es = $4 c in
-      switch x tag @@ loc1, es }
+      let y = $3 c type_ in
+      let tag = $4 c type_ in
+      let es = $5 c in
+      switch x y tag @@ loc1, es }
 
 block_instr :
   | BLOCK labeling_opt block END labeling_end_opt
@@ -910,12 +911,13 @@ expr1 :  /* Sugar */
       let tag = $3 c tag in
       let hs, es = $4 c in
       es, resume_throw x tag hs }
-  | SWITCH var var expr_list
+  | SWITCH var var var expr_list
     { fun c ->
       let x = $2 c type_ in
-      let tag = $3 c tag in
-      let es = $4 c in
-      es, switch x tag }
+      let y = $3 c type_ in
+      let tag = $4 c tag in
+      let es = $5 c in
+      es, switch x y tag }
   | BLOCK labeling_opt block
     { fun c -> let c' = $2 c [] in let bt, es = $3 c' in [], block bt es }
   | LOOP labeling_opt block

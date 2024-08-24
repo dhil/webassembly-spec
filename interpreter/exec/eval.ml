@@ -388,6 +388,8 @@ let rec step (c : config) : config =
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [Plain (Throw x) @@ e.at])) @@ e.at]
 
+      | Switch (x, y, z), _ -> failwith "unimplemented"
+
       | Barrier (bt, es'), vs ->
         let InstrT (ts1, _, _xs) = block_type c.frame.inst bt e.at in
         let args, vs' = i32_split (Lib.List32.length ts1) vs e.at in
