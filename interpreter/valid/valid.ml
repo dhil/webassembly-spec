@@ -439,7 +439,10 @@ let check_resume_table (c : context) ts2 (xys : (idx * hdl) list) at =
               ("type mismatch: instruction requires continuation reference type" ^
                  " but label has " ^ string_of_result_type ts')
          end
-      | OnSwitch -> failwith "unimplemented"
+      | OnSwitch ->
+         let FuncT (ts3, ts4) = func_type_of_tag_type c (tag c x1) x1.at in
+         require (match_result_type c.types ts3 []) x1.at
+           "type mismatch tag type"
   ) xys
 
 let check_block_type (c : context) (bt : block_type) at : instr_type =

@@ -388,7 +388,18 @@ let rec step (c : config) : config =
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [Plain (Throw x) @@ e.at])) @@ e.at]
 
-      | Switch (x, y, z), _ -> failwith "unimplemented"
+      | Switch (x, y, z), Ref (NullRef _) :: vs ->
+         vs, [Trapping "null continuation reference" @@ e.at]
+
+      | Switch (x, y, z), Ref (ContRef {contents = None}) :: vs ->
+         vs, [Trapping "continuation already consumed" @@ e.at]
+
+      | Switch (x, y, z), Ref (ContRef ({contents = Some (n, ctxt)} as cont)) :: vs ->
+         let tagt = tag c.frame.inst z in
+         let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
+         let _args, _vs' = split (List.length ts) vs e.at in
+         cont := None;
+         failwith "unimplemented"
 
       | Barrier (bt, es'), vs ->
         let InstrT (ts1, _, _xs) = block_type c.frame.inst bt e.at in
