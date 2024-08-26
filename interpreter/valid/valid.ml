@@ -96,13 +96,13 @@ let refer_func (c : context) x = refer "function" c.refs.Free.funcs x
 
 let cont_type_of_heap_type (c : context) (ht : heap_type) at : cont_type =
   match ht with
-  | DefHT dt -> assert false
+  | DefHT dt -> as_cont_str_type (expand_def_type dt) (* TODO(dhil): we should always hit VarHT *)
   | VarHT (StatX x) -> cont_type c (x @@ at)
   | _ -> assert false
 
 let func_type_of_heap_type (c : context) (ht : heap_type) at : func_type =
   match ht with
-  | DefHT dt -> assert false
+  | DefHT dt -> as_func_str_type (expand_def_type dt) (* TODO(dhil): we should always hit VarHT *)
   | VarHT (StatX x) -> func_type c (x @@ at)
   | _ -> assert false
 
@@ -605,7 +605,7 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
   | ContNew x ->
     let ContT ht = cont_type c x in
     [RefT (Null, ht)] -->
-    [RefT (NoNull, DefHT (type_ c x))], []
+    [RefT (NoNull, VarHT (StatX x.it))], []
 
   | ContBind (x, y) ->
     let ct = cont_type c x in
@@ -642,8 +642,20 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
   | Switch (x, y, z) ->
      let ct1 = cont_type c x in
      let ct2 = cont_type c y in
-     let FuncT (ts1, te1) = func_type_of_cont_type c ct1 x.at in
-     let FuncT (ts2, te2) = func_type_of_cont_type c ct2 y.at in
+     (* Printf.printf "%s, %s\n%!" (Types.string_of_cont_type ct1) (Types.string_of_cont_type ct1); *)
+     let (FuncT (ts1, te1)) as _ft1 = func_type_of_cont_type c ct1 x.at in
+     let (FuncT (ts2, te2)) as _ft2 = func_type_of_cont_type c ct2 y.at in
+     (* Printf.printf "%s, %s\n%!" (Types.string_of_func_type ft1) (Types.string_of_func_type ft2); *)
+     begin match Lib.List.last_opt ts1 with
+         | Some (RefT (nul', ht)) ->
+            let ct = cont_type_of_heap_type c ht x.at in
+            require (match_cont_type c.types ct ct2) x.at
+              "type mismatch in continuation type"
+         | _ ->
+            error x.at
+              ("type mismatch: instruction requires continuation reference type" ^
+                 " but type annotation has " ^ string_of_result_type ts1)
+     end;
      let et = tag c z in
      let (FuncT (_, t)) as eft = func_type_of_tag_type c et z.at in
      require (match_func_type c.types (FuncT ([], t)) eft) z.at
@@ -652,7 +664,7 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
        "type mismatch in continuation types";
      require (match_result_type c.types t te2) z.at
        "type mismatch in continuation types";
-     (ts1 @ [RefT (Null, VarHT (StatX y.it))]) --> ts2, []
+     ts1 --> ts2, []
 
   | Barrier (bt, es) ->
     let InstrT (ts1, ts2, xs) as ft = check_block_type c bt e.at in

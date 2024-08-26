@@ -406,7 +406,7 @@ let rec step (c : config) : config =
       | Switch (x, y, z), Ref (ContRef {contents = Some (n, ctxt)} as cont) :: vs ->
          let tagt = tag c.frame.inst z in
          let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
-         let args, vs' = split (List.length ts) vs e.at in
+         let args, vs' = i32_split (Lib.List32.length ts) vs e.at in
          vs', [Switching (tagt, (Ref cont) :: args, fun code -> code) @@ e.at]
 
       | Barrier (bt, es'), vs ->

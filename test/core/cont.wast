@@ -670,3 +670,42 @@
     (global.set $k (cont.new $ct (ref.func $f))))
 )
 (assert_return (invoke "set-global"))
+
+;; Switch
+(module
+ (rec
+    (type $ft (func (param (ref null $ct))))
+    (type $ct  (cont $ft)))
+
+ (func $print-i32 (import "spectest" "print_i32") (param i32))
+
+ (global $fi (mut i32) (i32.const 0))
+ (global $gi (mut i32) (i32.const 1))
+
+ (tag $swap)
+
+ (func $init (export "init")
+   (resume $ct (on $swap switch)
+     (cont.new $ct (ref.func $g))
+     (cont.new $ct (ref.func $f)))
+   )
+ (func $f (type $ft)
+   (local $nextk (ref null $ct))
+   (local.set $nextk (local.get 0))
+   (call $print-i32 (global.get $fi))
+   (switch $ct $ct $swap (local.get $nextk))
+   (local.set $nextk)
+   (call $print-i32 (global.get $fi))
+   (switch $ct $ct $swap (local.get $nextk))
+   (drop))
+ (func $g (type $ft)
+   (local $nextk (ref null $ct))
+   (local.set $nextk (local.get 0))
+   (call $print-i32 (global.get $gi))
+   (switch $ct $ct $swap (local.get $nextk))
+   (local.set $nextk)
+   (call $print-i32 (global.get $gi))
+  )
+ (elem declare func $f $g)
+)
+(assert_return (invoke "init"))
