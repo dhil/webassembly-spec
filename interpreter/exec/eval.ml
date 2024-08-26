@@ -73,7 +73,7 @@ and admin_instr' =
   | Frame of int * frame * code
   | Handler of int * catch list * code
   | Handle of (tag_inst * handler_target) list option * code
-  | Switching of tag_inst * value stack * ctxt
+  | Switching of tag_inst * value stack * ref_ * ctxt
   | Suspending of tag_inst * value stack * ctxt
 
 and ctxt = code -> code
@@ -393,7 +393,7 @@ let rec step (c : config) : config =
         let tagt = tag c.frame.inst y in
         let FuncT (ts, _) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
         let hs = List.map (hdl c) xls in
-        let args, vs' = split (List.length ts) vs e.at in
+        let args, vs' = i32_split (Lib.List32.length ts) vs e.at in
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [Plain (Throw x) @@ e.at])) @@ e.at]
 
@@ -406,8 +406,8 @@ let rec step (c : config) : config =
       | Switch (x, y, z), Ref (ContRef {contents = Some (n, ctxt)} as cont) :: vs ->
          let tagt = tag c.frame.inst z in
          let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
-         let args, vs' = i32_split (Lib.List32.length ts) vs e.at in
-         vs', [Switching (tagt, (Ref cont) :: args, fun code -> code) @@ e.at]
+         let args, vs' = i32_split (Int32.sub n 1l) vs e.at in
+         vs', [Switching (tagt, args, cont, fun code -> code) @@ e.at]
 
       | Barrier (bt, es'), vs ->
         let InstrT (ts1, _, _xs) = block_type c.frame.inst bt e.at in
@@ -1153,9 +1153,9 @@ let rec step (c : config) : config =
       let ctxt' code = [], [Label (n, es0, compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
 
-    | Label (n, es0, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+    | Label (n, es0, (vs', {it = Switching (tagt, vs1, cont, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Label (n, es0, compose (ctxt code) (vs', es')) @@ e.at] in
-      vs, [Switching (tagt, vs1, ctxt') @@ at]
+      vs, [Switching (tagt, vs1, cont, ctxt') @@ at]
 
     | Label (n, es0, (vs', {it = ReturningInvoke (vs0, f); at} :: es')), vs ->
       vs, [ReturningInvoke (vs0, f) @@ at]
@@ -1186,9 +1186,9 @@ let rec step (c : config) : config =
       let ctxt' code = [], [Frame (n, frame', compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
 
-    | Frame (n, frame', (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+    | Frame (n, frame', (vs', {it = Switching (tagt, vs1, cont, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Frame (n, frame', compose (ctxt code) (vs', es')) @@ e.at] in
-      vs, [Switching (tagt, vs1, ctxt') @@ at]
+      vs, [Switching (tagt, vs1, cont, ctxt') @@ at]
 
     | Frame (n, frame', (vs', {it = Returning vs0; at} :: es')), vs ->
       take n vs0 e.at @ vs, []
@@ -1232,9 +1232,9 @@ let rec step (c : config) : config =
       let ctxt' code = [], [Handler (n, cs, compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
 
-    | Handler (n, cs, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+    | Handler (n, cs, (vs', {it = Switching (tagt, vs1, cont, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Handler (n, cs, compose (ctxt code) (vs', es')) @@ e.at] in
-      vs, [Switching (tagt, vs1, ctxt') @@ at]
+      vs, [Switching (tagt, vs1, cont, ctxt') @@ at]
 
     | Handler (n, cs, (vs', e' :: es')), vs when is_jumping e' ->
       vs, [e']
@@ -1279,11 +1279,11 @@ let rec step (c : config) : config =
       [Ref (ContRef (ref (Some (Lib.List32.length ts, ctxt'))))] @ vs1 @ vs,
       [Plain (Br (handler_label (List.assq tagt hs))) @@ e.at]
 
-    | Handle (Some hs, (vs', {it = Switching (tagt, Ref (ContRef ({contents = Some (_, ctxt)} as cont)) :: vs1, ctxt'); at} :: es')), vs
+    | Handle (Some hs, (vs', {it = Switching (tagt, vs1, ContRef ({contents = Some (_, ctxt)} as cont), ctxt'); at} :: es')), vs
        when List.mem_assq tagt hs && is_switch_target (List.assq tagt hs) ->
        let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
        let ctxt'' code = compose (ctxt' code) (vs', es') in
-       let cont' = Ref (ContRef (ref (Some (Lib.List32.length ts, ctxt'')))) in
+       let cont' = Ref (ContRef (ref (Some (Int32.add (Lib.List32.length ts) 1l, ctxt'')))) in
        let args = vs1 @ [cont'] in
        cont := None;
        vs' @ vs, [Handle (Some hs, ctxt (args, [])) @@ e.at]
@@ -1292,9 +1292,9 @@ let rec step (c : config) : config =
       let ctxt' code = [], [Handle (hso, compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
 
-    | Handle (hso, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+    | Handle (hso, (vs', {it = Switching (tagt, vs1, cont, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Handle (hso, compose (ctxt code) (vs', es')) @@ e.at] in
-      vs, [Switching (tagt, vs1, ctxt') @@ at]
+      vs, [Switching (tagt, vs1, cont, ctxt') @@ at]
 
     | Handle (hso, (vs', e' :: es')), vs when is_jumping e' ->
       vs, [e']
@@ -1305,7 +1305,7 @@ let rec step (c : config) : config =
 
     | Suspending (_, _, _), _ -> assert false
 
-    | Switching (_, _, _), _ -> assert false
+    | Switching (_, _, _, _), _ -> assert false
   in {c with code = vs', es' @ List.tl es}
 
 
