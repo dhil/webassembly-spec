@@ -72,10 +72,12 @@ and admin_instr' =
   | Label of int * instr list * code
   | Frame of int * frame * code
   | Handler of int * catch list * code
-  | Handle of (tag_inst * idx) list option * code
+  | Handle of (tag_inst * handler_target) list option * code
+  | Switching of tag_inst * value stack * ctxt
   | Suspending of tag_inst * value stack * ctxt
 
 and ctxt = code -> code
+and handler_target = hdl
 
 type cont = int32 * ctxt  (* TODO: represent type properly *)
 type ref_ += ContRef of cont option ref
@@ -103,6 +105,13 @@ let is_jumping e =
 
 let compose (vs1, es1) (vs2, es2) = vs1 @ vs2, es1 @ es2
 
+let is_switch_target : handler_target -> bool = function
+  | OnSwitch -> true
+  | _ -> false
+
+let handler_label : handler_target -> idx = function
+  | OnLabel idx -> idx
+  | _ -> assert false
 
 (* Configurations *)
 
@@ -223,8 +232,8 @@ let array_oob a i n =
   I64.gt_u (I64.add (I64_convert.extend_i32_u i) (I64_convert.extend_i32_u n))
     (I64_convert.extend_i32_u (Aggr.array_length a))
 
-let hdl (c : config) ((x : idx), (h : hdl)) : (tag_inst * idx) =
-  tag c.frame.inst x, match h with OnLabel l -> l | _ -> assert false
+let hdl (c : config) ((x : idx), (h : hdl)) : (tag_inst * handler_target) =
+  tag c.frame.inst x, h
 
 let rec step (c : config) : config =
   let vs, es = c.code in
@@ -394,12 +403,11 @@ let rec step (c : config) : config =
       | Switch (x, y, z), Ref (ContRef {contents = None}) :: vs ->
          vs, [Trapping "continuation already consumed" @@ e.at]
 
-      | Switch (x, y, z), Ref (ContRef ({contents = Some (n, ctxt)} as cont)) :: vs ->
+      | Switch (x, y, z), Ref (ContRef {contents = Some (n, ctxt)} as cont) :: vs ->
          let tagt = tag c.frame.inst z in
          let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
-         let _args, _vs' = split (List.length ts) vs e.at in
-         cont := None;
-         failwith "unimplemented"
+         let args, vs' = split (List.length ts) vs e.at in
+         vs', [Switching (tagt, (Ref cont) :: args, fun code -> code) @@ e.at]
 
       | Barrier (bt, es'), vs ->
         let InstrT (ts1, _, _xs) = block_type c.frame.inst bt e.at in
@@ -1145,6 +1153,10 @@ let rec step (c : config) : config =
       let ctxt' code = [], [Label (n, es0, compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
 
+    | Label (n, es0, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+      let ctxt' code = [], [Label (n, es0, compose (ctxt code) (vs', es')) @@ e.at] in
+      vs, [Switching (tagt, vs1, ctxt') @@ at]
+
     | Label (n, es0, (vs', {it = ReturningInvoke (vs0, f); at} :: es')), vs ->
       vs, [ReturningInvoke (vs0, f) @@ at]
 
@@ -1173,6 +1185,10 @@ let rec step (c : config) : config =
     | Frame (n, frame', (vs', {it = Suspending (tagt, vs1, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Frame (n, frame', compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
+
+    | Frame (n, frame', (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+      let ctxt' code = [], [Frame (n, frame', compose (ctxt code) (vs', es')) @@ e.at] in
+      vs, [Switching (tagt, vs1, ctxt') @@ at]
 
     | Frame (n, frame', (vs', {it = Returning vs0; at} :: es')), vs ->
       take n vs0 e.at @ vs, []
@@ -1212,6 +1228,14 @@ let rec step (c : config) : config =
     | Handler (n, [], (vs', {it = Throwing (a, vs0); at} :: es')), vs ->
       vs, [Throwing (a, vs0) @@ at]
 
+    | Handler (n, cs, (vs', {it = Suspending (tagt, vs1, ctxt); at} :: es')), vs ->
+      let ctxt' code = [], [Handler (n, cs, compose (ctxt code) (vs', es')) @@ e.at] in
+      vs, [Suspending (tagt, vs1, ctxt') @@ at]
+
+    | Handler (n, cs, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+      let ctxt' code = [], [Handler (n, cs, compose (ctxt code) (vs', es')) @@ e.at] in
+      vs, [Switching (tagt, vs1, ctxt') @@ at]
+
     | Handler (n, cs, (vs', e' :: es')), vs when is_jumping e' ->
       vs, [e']
 
@@ -1249,15 +1273,28 @@ let rec step (c : config) : config =
       vs, [Trapping "barrier hit by suspension" @@ at]
 
     | Handle (Some hs, (vs', {it = Suspending (tagt, vs1, ctxt); at} :: es')), vs
-      when List.mem_assq tagt hs ->
+      when List.mem_assq tagt hs && not (is_switch_target (List.assq tagt hs)) ->
       let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
       let ctxt' code = compose (ctxt code) (vs', es') in
       [Ref (ContRef (ref (Some (Lib.List32.length ts, ctxt'))))] @ vs1 @ vs,
-      [Plain (Br (List.assq tagt hs)) @@ e.at]
+      [Plain (Br (handler_label (List.assq tagt hs))) @@ e.at]
+
+    | Handle (Some hs, (vs', {it = Switching (tagt, Ref (ContRef ({contents = Some (_, ctxt)} as cont)) :: vs1, ctxt'); at} :: es')), vs
+       when List.mem_assq tagt hs && is_switch_target (List.assq tagt hs) ->
+       let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
+       let ctxt'' code = compose (ctxt' code) (vs', es') in
+       let cont' = Ref (ContRef (ref (Some (Lib.List32.length ts, ctxt'')))) in
+       let args = vs1 @ [cont'] in
+       cont := None;
+       vs' @ vs, [Handle (Some hs, ctxt (args, [])) @@ e.at]
 
     | Handle (hso, (vs', {it = Suspending (tagt, vs1, ctxt); at} :: es')), vs ->
       let ctxt' code = [], [Handle (hso, compose (ctxt code) (vs', es')) @@ e.at] in
       vs, [Suspending (tagt, vs1, ctxt') @@ at]
+
+    | Handle (hso, (vs', {it = Switching (tagt, vs1, ctxt); at} :: es')), vs ->
+      let ctxt' code = [], [Handle (hso, compose (ctxt code) (vs', es')) @@ e.at] in
+      vs, [Switching (tagt, vs1, ctxt') @@ at]
 
     | Handle (hso, (vs', e' :: es')), vs when is_jumping e' ->
       vs, [e']
@@ -1267,6 +1304,8 @@ let rec step (c : config) : config =
       vs, [Handle (hso, c'.code) @@ e.at]
 
     | Suspending (_, _, _), _ -> assert false
+
+    | Switching (_, _, _), _ -> assert false
   in {c with code = vs', es' @ List.tl es}
 
 
@@ -1280,6 +1319,7 @@ let rec eval (c : config) : value stack =
     | Trapping msg ->  Trap.error e.at msg
     | Throwing _ -> Exception.error e.at "unhandled exception"
     | Suspending _ -> Suspension.error e.at "unhandled tag"
+    | Switching _ -> Suspension.error e.at "unhandled switch"
     | Returning _ | ReturningInvoke _ -> Crash.error e.at "undefined frame"
     | Breaking _ -> Crash.error e.at "undefined label"
     | _ -> assert false
