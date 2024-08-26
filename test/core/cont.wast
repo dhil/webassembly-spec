@@ -684,11 +684,11 @@
 
  (tag $swap)
 
- (func $init (export "init")
+ (func $init (export "init") (result i32)
    (resume $ct (on $swap switch)
      (cont.new $ct (ref.func $g))
      (cont.new $ct (ref.func $f)))
-   )
+   (return (i32.const 42)))
  (func $f (type $ft)
    (local $nextk (ref null $ct))
    (local.set $nextk (local.get 0))
@@ -708,4 +708,4 @@
   )
  (elem declare func $f $g)
 )
-(assert_return (invoke "init"))
+(assert_return (invoke "init") (i32.const 42))
