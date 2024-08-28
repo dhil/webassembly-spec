@@ -651,9 +651,8 @@ let rec instr s =
     resume_throw x tag xls
   | 0xe5 ->
     let x = at var s in
-    let y = at var s in
     let tag = at var s in
-    switch x y tag
+    switch x tag
   | 0xe6 ->
     let bt = block_type s in
     let es' = instr_block s in

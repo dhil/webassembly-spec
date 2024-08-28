@@ -397,14 +397,14 @@ let rec step (c : config) : config =
         cont := None;
         vs', [Handle (Some hs, ctxt (args, [Plain (Throw x) @@ e.at])) @@ e.at]
 
-      | Switch (x, y, z), Ref (NullRef _) :: vs ->
+      | Switch (x, y), Ref (NullRef _) :: vs ->
          vs, [Trapping "null continuation reference" @@ e.at]
 
-      | Switch (x, y, z), Ref (ContRef {contents = None}) :: vs ->
+      | Switch (x, y), Ref (ContRef {contents = None}) :: vs ->
          vs, [Trapping "continuation already consumed" @@ e.at]
 
-      | Switch (x, y, z), Ref (ContRef {contents = Some (n, ctxt)} as cont) :: vs ->
-         let tagt = tag c.frame.inst z in
+      | Switch (x, y), Ref (ContRef {contents = Some (n, ctxt)} as cont) :: vs ->
+         let tagt = tag c.frame.inst y in
          let FuncT (_, ts) = func_type_of_tag_type c.frame.inst (Tag.type_of tagt) in
          let args, vs' = i32_split (Int32.sub n 1l) vs e.at in
          vs', [Switching (tagt, args, cont, fun code -> code) @@ e.at]

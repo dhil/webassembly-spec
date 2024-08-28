@@ -639,30 +639,25 @@ let rec check_instr (c : context) (e : instr) (s : infer_result_type) : infer_in
     check_resume_table c ts2 xys e.at;
     (ts0 @ [RefT (Null, VarHT (StatX x.it))]) --> ts2, []
 
-  | Switch (x, y, z) ->
+  | Switch (x, y) ->
      let ct1 = cont_type c x in
-     let ct2 = cont_type c y in
-     (* Printf.printf "%s, %s\n%!" (Types.string_of_cont_type ct1) (Types.string_of_cont_type ct1); *)
      let (FuncT (ts1, te1)) as _ft1 = func_type_of_cont_type c ct1 x.at in
-     let (FuncT (ts2, te2)) as _ft2 = func_type_of_cont_type c ct2 y.at in
-     (* Printf.printf "%s, %s\n%!" (Types.string_of_func_type ft1) (Types.string_of_func_type ft2); *)
-     begin match Lib.List.last_opt ts1 with
+     let (FuncT (ts2, te2)) as _ft2 =
+       match Lib.List.last_opt ts1 with
          | Some (RefT (nul', ht)) ->
-            let ct = cont_type_of_heap_type c ht x.at in
-            require (match_cont_type c.types ct ct2) x.at
-              "type mismatch in continuation type"
+            func_type_of_cont_type c (cont_type_of_heap_type c ht x.at) x.at
          | _ ->
             error x.at
               ("type mismatch: instruction requires continuation reference type" ^
-                 " but type annotation has " ^ string_of_result_type ts1)
-     end;
-     let et = tag c z in
-     let (FuncT (_, t)) as eft = func_type_of_tag_type c et z.at in
-     require (match_func_type c.types (FuncT ([], t)) eft) z.at
+                 " but stack has " ^ string_of_result_type ts1)
+     in
+     let et = tag c y in
+     let (FuncT (_, t)) as eft = func_type_of_tag_type c et y.at in
+     require (match_func_type c.types (FuncT ([], t)) eft) y.at
        "type mismatch in switch tag";
-     require (match_result_type c.types te1 t) z.at
+     require (match_result_type c.types te1 t) y.at
        "type mismatch in continuation types";
-     require (match_result_type c.types t te2) z.at
+     require (match_result_type c.types t te2) y.at
        "type mismatch in continuation types";
      ts1 --> ts2, []
 

@@ -183,7 +183,7 @@ let rec instr (e : instr) =
   | ResumeThrow (x, y, xys) -> types (idx x) ++ tags (idx y) ++ list (fun (x, y) -> tags (idx x) ++ hdl y) xys
   | Resume (x, xys) -> types (idx x) ++ list (fun (x, y) -> tags (idx x) ++ hdl y) xys
   | Suspend x -> tags (idx x)
-  | Switch (x, y, z) -> types (idx x) ++ types (idx y) ++ tags (idx z)
+  | Switch (x, z) -> types (idx x) ++ tags (idx z)
   | Throw x -> tags (idx x)
   | ThrowRef -> empty
   | TryTable (bt, cs, es) ->
